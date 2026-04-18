@@ -9,7 +9,7 @@ st.title("🔮 小葉占卜師：AI塔羅諮詢")
 if "GOOGLE_API_KEY" in st.secrets:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
 else:
-    st.error("請在 Streamlit Secrets 中設定 GOOGLE_API_KEY")
+    st.error("請在 Streamlit Secrets 中設定 GOOGLE_API_KEY，名稱必須完全一致。")
     st.stop()
 
 genai.configure(api_key=API_KEY)
@@ -57,21 +57,21 @@ instruction = """
 「針對你這項具體的行動決策，我們需要額外抽取 [1-3張] 建議牌，來獲取當下的精確指引。」
 """
 
-# 4. 初始化模型 (降級為 1.5 Flash 以獲得更多免費配額)
+# 4. 初始化模型 (使用最穩定的 1.5 Flash 路徑)
 @st.cache_resource
 def load_tarot_master():
     return genai.GenerativeModel(
-        model_name="models/gemini-1.5-flash",
+        model_name="models/gemini-1.5-flash-latest",
         system_instruction=instruction
     )
 
 model = load_tarot_master()
 
-# --- 5. 初始化對話紀錄 ---
+# --- 5. 初始化對話紀錄 (確保後台指令被過濾) ---
 if "messages" not in st.session_state:
     st.session_state.chat = model.start_chat(history=[])
     try:
-        # 在後台啟動問候語
+        # 默默啟動第一句話
         response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
         st.session_state.messages = [{"role": "assistant", "content": response.text}]
     except Exception as e:
@@ -82,9 +82,9 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- 7. 使用者輸入邏輯 ---
+# --- 7. 使用者輸入邏輯 (全檔僅此一個輸入框) ---
 if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_chat"):
-    # 顯示使用者訊息
+    # 顯示使用者訊息並存入紀錄
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -97,8 +97,8 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                # 這裡增加一個判斷，如果是 Quota 滿了給予友善提示
+                # 針對配額限制(429)給予更直觀的提示
                 if "429" in str(e):
-                    st.error("大師目前感應過於頻繁，請稍等一分鐘後再試。")
+                    st.warning("大師感應次數已達免費額度上限，請稍候 1 分鐘再試。")
                 else:
                     st.error(f"連線異常：{e}")
