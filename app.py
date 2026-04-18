@@ -57,11 +57,11 @@ instruction = """
 「針對你這項具體的行動決策，我們需要額外抽取 [1-3張] 建議牌，來獲取當下的精確指引。」
 """
 
-# 4. 初始化模型
+# 4. 初始化模型 (降級為 1.5 Flash 以獲得更多免費配額)
 @st.cache_resource
 def load_tarot_master():
     return genai.GenerativeModel(
-        model_name="models/gemini-2.5-flash",
+        model_name="models/gemini-1.5-flash",
         system_instruction=instruction
     )
 
@@ -71,7 +71,7 @@ model = load_tarot_master()
 if "messages" not in st.session_state:
     st.session_state.chat = model.start_chat(history=[])
     try:
-        # 在後台啟動，不讓用戶看到指令
+        # 在後台啟動問候語
         response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
         st.session_state.messages = [{"role": "assistant", "content": response.text}]
     except Exception as e:
@@ -82,14 +82,14 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- 7. 使用者輸入邏輯 (確保全檔只有這一個輸入框) ---
+# --- 7. 使用者輸入邏輯 ---
 if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_chat"):
-    # 1. 顯示使用者的話
+    # 顯示使用者訊息
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
-    # 2. 顯示大師回應（包含轉圈圈動畫）
+    # 顯示大師回應
     with st.chat_message("assistant"):
         with st.spinner("大師正在感應牌陣..."):
             try:
@@ -97,4 +97,8 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                st.error(f"連線異常，請稍後再試：{e}")
+                # 這裡增加一個判斷，如果是 Quota 滿了給予友善提示
+                if "429" in str(e):
+                    st.error("大師目前感應過於頻繁，請稍等一分鐘後再試。")
+                else:
+                    st.error(f"連線異常：{e}")
