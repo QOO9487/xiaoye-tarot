@@ -5,8 +5,13 @@ import google.generativeai as genai
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮")
 st.title("🔮 小葉占卜師：AI塔羅諮詢")
 
-# 2. API Key 設定 (再次提醒：測試成功後建議更換新 Key 並保密)
-API_KEY = "AIzaSyAKkfy479-Itbg9LMFziX7pQr8YXq_3x28"
+# 2. 從 Streamlit Secrets 保險箱讀取 API Key (這是最安全的作法)
+if "GOOGLE_API_KEY" in st.secrets:
+    API_KEY = st.secrets["GOOGLE_API_KEY"]
+else:
+    st.error("請在 Streamlit Secrets 中設定 GOOGLE_API_KEY")
+    st.stop()
+
 genai.configure(api_key=API_KEY)
 
 # 3. 灌入你的占卜大師靈魂 (System Instruction)
