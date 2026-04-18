@@ -7,7 +7,7 @@ st.title("🔮 小葉占卜師：專業塔羅諮詢")
 
 # 2. 設定 API Key (請注意安全性，建議之後更換新 Key)
 # 提醒：你目前的 Key 已公開，建議稍後前往 AI Studio 重新產生並替換
-API_KEY = "AIzaSyCoxxp1R1ED_mMqo7l86ThEZbCX15CCT5U" 
+API_KEY = "AIzaSyAKkfy479-Itbg9LMFziX7pQr8YXq_3x28" 
 genai.configure(api_key=API_KEY)
 
 # 3. 占卜大師指令
