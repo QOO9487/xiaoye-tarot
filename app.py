@@ -68,6 +68,6 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
             except Exception as e:
                 # 針對配額限制(429)給予提示
                 if "429" in str(e):
-                    st.warning("大師感應次數已達上限，請稍候一分鐘再試。")
+                    st.warning("大師感應次數已達上限，請稍候半小時再試。")
                 else:
                     st.error(f"連線異常：{e}")
