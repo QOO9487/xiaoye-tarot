@@ -5,7 +5,7 @@ import google.generativeai as genai
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮")
 st.title("🔮 小葉占卜師：AI塔羅諮詢")
 
-# 2. 從 Streamlit Secrets 保險箱讀取 API Key (這是最安全的作法)
+# 2. 從 Streamlit Secrets 保險箱讀取 API Key
 if "GOOGLE_API_KEY" in st.secrets:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
 else:
@@ -31,8 +31,9 @@ instruction = """
 生理性別判定：你必須根據三張牌的元素（火/水/風/土）與人物牌特質，做出一個明確的二選一斷言。
 請直接告知你感應到對方是「生理男」或「生理女」。 嚴禁使用「可能」、「或許」等模糊詞彙，必須給出確定答案。
 
-年齡與狀態感應：判定對方的成熟度（例如：20歲左右的青年、35歲以上的壯年、或心態沉穩的長者）以及目前的靈魂能量狀態。
+年齡與狀態感應：判定對方的成熟度（例如：20多歲、30~40歲之間）。
 「請使用台灣慣用的口吻，直接描述年齡區間（如：20多歲、30~40歲之間），嚴禁使用『20代』這種語法。」
+
 驗證精準度：解析後詢問：「[對方稱呼]，以上我感應到的生理性別與現狀是否正確？這將作為我後續解析精準度的基準。」
 
 [第三階段：問題確認與引導]
@@ -56,8 +57,7 @@ instruction = """
 「針對你這項具體的行動決策，我們需要額外抽取 [1-3張] 建議牌，來獲取當下的精確指引。」
 """
 
-# 4. 初始化模型 (使用剛才測試成功的型號)
-# 如果未來想升級到更高階，可以改用 models/gemini-3-pro-preview
+# 4. 初始化模型
 @st.cache_resource
 def load_tarot_master():
     return genai.GenerativeModel(
@@ -69,31 +69,27 @@ model = load_tarot_master()
 
 # --- 5. 初始化對話紀錄 ---
 if "messages" not in st.session_state:
-    # 建立初始對話物件
     st.session_state.chat = model.start_chat(history=[])
-    # 在後台靜默啟動第一句話
     try:
+        # 在後台啟動，不讓用戶看到指令
         response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
-        # 只存下 AI 的回應內容，但不顯示原始指令
         st.session_state.messages = [{"role": "assistant", "content": response.text}]
     except Exception as e:
         st.session_state.messages = [{"role": "assistant", "content": "您好！請問我該如何稱呼你？"}]
 
 # --- 6. 渲染對話畫面 ---
-# 這裡直接跑我們存在 session_state 裡的乾淨紀錄
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- 7. 使用者輸入邏輯 ---
-# 確保這個輸入框在整段代碼中只會被執行到一次
-if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
-    # 1. 立即顯示使用者的話
+# --- 7. 使用者輸入邏輯 (確保全檔只有這一個輸入框) ---
+if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_chat"):
+    # 1. 顯示使用者的話
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
-    # 2. 呼叫大師回應
+    # 2. 顯示大師回應（包含轉圈圈動畫）
     with st.chat_message("assistant"):
         with st.spinner("大師正在感應牌陣..."):
             try:
@@ -101,17 +97,4 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                st.error(f"大師暫時斷開了連結：{e}")
-                
-# 8. 使用者輸入框
-if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"): # 先開好大師的對話框
-        with st.spinner("大師正在感應牌陣..."): # 顯示轉圈圈
-            try:
-                response = st.session_state.chat.send_message(prompt)
-                st.markdown(response.text)
-            except Exception as e:
-                st.error(f"連線異常：{e}")
+                st.error(f"連線異常，請稍後再試：{e}")
