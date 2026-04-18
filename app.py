@@ -1,18 +1,18 @@
 import streamlit as st
 import google.generativeai as genai
 
-# 網頁基本設定
+# 1. 網頁基本設定
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮")
 st.title("🔮 小葉占卜師：專業塔羅諮詢")
 
-# 設定 API Key (暫時先直接填入測試，之後教你更安全的做法)
-# 請把下面引號內換成你剛才在 AI Studio 申請到的那串長字元
-genai.configure(api_key="AIzaSyCoxxp1R1ED_mMqo7l86ThEZbCX15CCT5U")
+# 2. 設定 API Key (請注意安全性，建議之後更換新 Key)
+# 提醒：你目前的 Key 已公開，建議稍後前往 AI Studio 重新產生並替換
+API_KEY = "AIzaSyCoxxp1R1ED_mMqo7l86ThEZbCX15CCT5U" 
+genai.configure(api_key=API_KEY)
 
-# 你的大師提示詞
+# 3. 占卜大師指令
 instruction = """
 [核心人格]
-
 你是一位具備資深背景與極高洞察力的塔羅占卜大師。語氣沉穩、睿智且專業。你重視「能量對位」的嚴謹性，並能透過牌陣感應對象的物質與靈魂特徵。
 
 [第一階段：確認身分]
@@ -44,33 +44,40 @@ instruction = """
 
 [第六階段：後續延伸問題決策邏輯]
 當完成解析，客戶提出延伸問題時，請自動判斷處理方式：
-
 深度挖掘（不重抽）：若問題是詢問原本牌陣中的細節，請直接從現有牌組中尋找更深層訊息。
-
 行動導航（須重抽）：若問題涉及新的決策或行動建議，請告知：
-
 「針對你這項具體的行動決策，我們需要額外抽取 [1-3張] 建議牌，來獲取當下的精確指引。」
 """
 
+# 4. 初始化模型 (使用最穩定的名稱)
 model = genai.GenerativeModel(
-    model_name="models/gemini-1.5-flash-latest", 
+    model_name="gemini-1.5-flash",
     system_instruction=instruction
 )
 
+# 5. 啟動對話 Session
 if "chat" not in st.session_state:
     st.session_state.chat = model.start_chat(history=[])
 
+# 6. 渲染歷史對話
 for message in st.session_state.chat.history:
+    # 這裡的邏輯：Google 的 role 是 user/model，Streamlit 建議轉為 user/assistant
     role = "user" if message.role == "user" else "assistant"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
+# 7. 輸入框與邏輯
 if prompt := st.chat_input("你想對大師說什麼？"):
+    # 顯示使用者的訊息
     with st.chat_message("user"):
         st.markdown(prompt)
+    
+    # 呼叫 API 獲取回應
     try:
         response = st.session_state.chat.send_message(prompt)
+        # 顯示大師的訊息
         with st.chat_message("assistant"):
             st.markdown(response.text)
     except Exception as e:
+        # 如果報錯 404，通常是模型名稱或 API 版本問題
         st.error(f"連線異常，請稍後再試：{e}")
