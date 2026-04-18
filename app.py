@@ -67,37 +67,41 @@ def load_tarot_master():
 
 model = load_tarot_master()
 
-# 5. 建立對話 Session
-if "chat" not in st.session_state:
-    # 這裡直接設定初始對話，讓大師第一句話就符合規範，且不留指令痕跡
+# --- 5. 初始化對話紀錄 ---
+if "messages" not in st.session_state:
+    # 建立初始對話物件
     st.session_state.chat = model.start_chat(history=[])
+    # 在後台靜默啟動第一句話
     try:
-        # 在後台獲取第一句話
         response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
-        # 重要：手動清空歷史紀錄，只留下大師剛才說的那句問候
-        # 這樣就不會看到那句「請依照指令...」了
-        st.session_state.chat.history = st.session_state.chat.history[-1:]
+        # 只存下 AI 的回應內容，但不顯示原始指令
+        st.session_state.messages = [{"role": "assistant", "content": response.text}]
     except Exception as e:
-        st.error(f"啟動失敗：{e}")
+        st.session_state.messages = [{"role": "assistant", "content": "您好！請問我該如何稱呼你？"}]
 
-# 6. 顯示對話紀錄 (現在紀錄裡只會有乾淨的問候語)
-for message in st.session_state.chat.history:
-    role = "user" if message.role == "user" else "assistant"
-    with st.chat_message(role):
-        st.markdown(message.parts[0].text)
+# --- 6. 渲染對話畫面 ---
+# 這裡直接跑我們存在 session_state 裡的乾淨紀錄
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-# 7. 使用者輸入框
+# --- 7. 使用者輸入邏輯 ---
+# 確保這個輸入框在整段代碼中只會被執行到一次
 if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
+    # 1. 立即顯示使用者的話
     with st.chat_message("user"):
         st.markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
     
+    # 2. 呼叫大師回應
     with st.chat_message("assistant"):
         with st.spinner("大師正在感應牌陣..."):
             try:
                 response = st.session_state.chat.send_message(prompt)
                 st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                st.error(f"連線異常：{e}")
+                st.error(f"大師暫時斷開了連結：{e}")
                 
 # 8. 使用者輸入框
 if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
