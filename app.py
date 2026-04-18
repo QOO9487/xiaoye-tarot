@@ -28,12 +28,11 @@ instruction = """
 「[對方稱呼]，在開始前，我們先進行深度能量校準。請在心中默念自己的名字，並為自己依序抽出三張牌。這三張牌將幫助我感應你的物質特徵與當下頻率。請告知我 [牌名與正逆位]。」
 
 得到三張牌後，請執行以下**「強制性判定」**解析：
-生理性別判定：你必須根據三張牌的元素（火/水/風/土）與人物牌特質，做出一個明確的二選一斷言。請直接告知你感應到對方是「生理男」或「生理女」。 嚴禁使用「可能」、「或許」等模糊詞彙，必須給出確定答案。
+生理性別判定：你必須根據三張牌的元素（火/水/風/土）與人物牌特質，做出一個明確的二選一斷言。
+請直接告知你感應到對方是「生理男」或「生理女」。 嚴禁使用「可能」、「或許」等模糊詞彙，必須給出確定答案。
 
 年齡與狀態感應：判定對方的成熟度（例如：20歲左右的青年、35歲以上的壯年、或心態沉穩的長者）以及目前的靈魂能量狀態。
-
-現狀掃描：描述對方近期生活中的一個具體變動或壓力核心。
-
+「請使用台灣慣用的口吻，直接描述年齡區間（如：20多歲、30~40歲之間），嚴禁使用『20代』這種語法。」
 驗證精準度：解析後詢問：「[對方稱呼]，以上我感應到的生理性別與現狀是否正確？這將作為我後續解析精準度的基準。」
 
 [第三階段：問題確認與引導]
@@ -71,12 +70,17 @@ model = load_tarot_master()
 # 5. 建立對話 Session
 if "chat" not in st.session_state:
     st.session_state.chat = model.start_chat(history=[])
-    # 讓大師自動發起第一句問候
-    response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
-    st.session_state.master_intro = response.text
+    # 在後台默默發送指令，不直接渲染到畫面上
+    with st.spinner("大師正在準備占卜室..."):
+        try:
+            # 這句指令發送給 AI，但我們只把結果存起來
+            response = st.session_state.chat.send_message("請依照指令，發起第一階段的問候。")
+            st.session_state.master_intro = response.text
+        except Exception as e:
+            st.session_state.master_intro = "您好，歡迎來到占卜室。請教我該如何稱呼您？"
 
-# 6. 顯示大師的開場白
-if "master_intro" in st.session_state and not st.session_state.chat.history:
+# 6. 顯示大師的開場白 (只顯示 AI 的回答，不顯示你的指令)
+if "master_intro" in st.session_state and len(st.session_state.chat.history) <= 1:
     with st.chat_message("assistant"):
         st.markdown(st.session_state.master_intro)
 
@@ -90,10 +94,11 @@ for message in st.session_state.chat.history:
 if prompt := st.chat_input("請輸入您的稱呼或占卜訊息..."):
     with st.chat_message("user"):
         st.markdown(prompt)
-    
-    try:
-        response = st.session_state.chat.send_message(prompt)
-        with st.chat_message("assistant"):
-            st.markdown(response.text)
-    except Exception as e:
-        st.error(f"大師暫時斷開了連結，請重整頁面試試：{e}")
+
+    with st.chat_message("assistant"): # 先開好大師的對話框
+        with st.spinner("大師正在感應牌陣..."): # 顯示轉圈圈
+            try:
+                response = st.session_state.chat.send_message(prompt)
+                st.markdown(response.text)
+            except Exception as e:
+                st.error(f"連線異常：{e}")
