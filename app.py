@@ -3,7 +3,7 @@ import google.generativeai as genai
 
 # 1. 網頁頁面標題與圖示
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮")
-st.title("🔮 小葉占卜師：專業塔羅諮詢")
+st.title("🔮 小葉占卜師：AI塔羅諮詢")
 
 # 2. API Key 設定 (再次提醒：測試成功後建議更換新 Key 並保密)
 API_KEY = "AIzaSyAKkfy479-Itbg9LMFziX7pQr8YXq_3x28"
