@@ -67,10 +67,10 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # ==========================================
-# 5. 密碼攔截機制 (第二題門檻)
+# 5. 密碼攔截機制 (第三題門檻)
 # ==========================================
-# 邏輯：當使用者已經問過 1 個問題，且還沒解鎖時，攔截後續動作
-if st.session_state.question_count == 1 and not st.session_state.unlocked:
+# 邏輯：當使用者已經問過 3 個問題，且還沒解鎖時，攔截後續動作
+if st.session_state.question_count == 3 and not st.session_state.unlocked:
     st.markdown("---")
     st.warning("🔮 大師感應到深層能量，請輸入『通行密碼』以繼續深度諮詢：")
     
