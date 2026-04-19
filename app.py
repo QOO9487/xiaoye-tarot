@@ -5,7 +5,12 @@ import re
 # ==========================================
 # 1. 核心參數與安全性設定
 # ==========================================
-ACCESS_PASSWORD = "葉大師168"  # 🔮 在此修改你的通行密碼
+# 移除備用密碼，強制從平台 Secrets 讀取
+if "ACCESS_PASSWORD" in st.secrets:
+    ACCESS_PASSWORD = st.secrets["ACCESS_PASSWORD"]
+else:
+    st.error("請在 Streamlit Secrets 中設定 ACCESS_PASSWORD (通行密碼)")
+    st.stop()
 
 # 網頁基礎配置
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮", layout="centered")
@@ -141,6 +146,7 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
                 
             except Exception as e:
+                # 異常處理
                 if "429" in str(e):
                     st.warning("大師目前感應過於頻繁，請稍候再試。")
                 elif "404" in str(e):
@@ -152,4 +158,4 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
 # 7. 頁尾資訊
 # ==========================================
 st.divider()
-st.caption("© 2026 小葉設計 ")
+st.caption("© 2026 小葉設計")
