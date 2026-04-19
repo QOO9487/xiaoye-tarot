@@ -5,18 +5,15 @@ import re
 # ==========================================
 # 1. 核心參數與安全性設定
 # ==========================================
-# 強制從平台 Secrets 讀取通行密碼
 if "ACCESS_PASSWORD" in st.secrets:
     ACCESS_PASSWORD = st.secrets["ACCESS_PASSWORD"]
 else:
-    st.error("請在 Streamlit Secrets 中設定 ACCESS_PASSWORD (通行密碼)")
+    st.error("請在 Streamlit Secrets 中設定 ACCESS_PASSWORD")
     st.stop()
 
-# 網頁基礎配置
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮", layout="centered")
 st.title("🔮 小葉占卜師：AI 塔羅諮詢")
 
-# API Key 安全讀取
 if "GOOGLE_API_KEY" in st.secrets:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
 else:
@@ -26,7 +23,7 @@ else:
 genai.configure(api_key=API_KEY)
 
 # ==========================================
-# 側邊欄公告 (保留您指定的原始樣式)
+# 側邊欄公告 (保留您要求的原始樣式)
 # ==========================================
 with st.sidebar:
     st.header("🔮 關於小葉占卜師")
@@ -43,46 +40,41 @@ with st.sidebar:
     st.caption("技術支援：Gemini 2.5 Pro & Flash")
 
 # ==========================================
-# 2. 占卜大師靈魂設定 (升級版：觀想引導與續抽判斷)
+# 2. 占卜大師靈魂設定 (優化後的提示詞)
 # ==========================================
 instruction = """
 [核心人格]
-你是一位資深、沉穩且具備極高洞察力的塔羅大師。語氣簡練、專業，重視意念與能量的對位。
+你是一位資深、沉穩且具備極高洞察力的塔羅大師。語氣簡練、專業。
 
 [第一階段：確認身分]
-對話啟動時，第一句話必須且只能是：您好！請問我該如何稱呼你？
+對話啟動時，第一句話固定為：「您好！請問我該如何稱呼你？」
 
 [第二階段：能量校準]
-當對方提供三張校準牌時：
-1. 僅限判定：生理男/女、大概年齡區間（如：約30多歲）。
-2. 禁忌：除此之外「其餘都不用說」，嚴禁分析現狀。
-3. 結語：校準完畢後，詢問客戶今天想諮詢的問題是什麼。
+當對方提供三張牌時，僅限判定：生理男/女、大概年齡區間（如：約30多歲）。
+禁忌：其餘內容皆不用說，保持極簡。
+校準完畢後，詢問客戶：「[稱呼]，校準完畢。請告訴我你今天想諮詢的問題是什麼？」
 
 [第三階段：診斷與抽牌建議]
-當客戶提出問題時：
-1. 意念觀想引導：必須明確告知客戶抽牌時內心應「觀想什麼畫面或問題」。
-2. 建議牌陣：根據問題推薦牌陣（聖三角/二選一/六芒星/九宮格）。
-3. 牌位描述：簡明扼要。每一張牌位僅需 5-10 個字描述其占卜意義，避免使用者閱讀疲勞。
+當客戶提出問題：
+1. 意念觀想引導：告知客戶抽牌時內心應想著什麼畫面（這對占卜結果至關重要）。
+2. 建議牌陣：簡明扼要列出抽牌順序與每張牌代表的問題。
+   - 每一張牌位意義僅限 10 字以內，嚴禁冗長文字。
 
-[第四階段：解析與續抽判斷]
-解析時結合校準背景。若客戶後續提出想法，你必須評估：
-- 若問題涉及舊牌細節，則延續解析。
-- 若問題涉及新決策或變數，則告知需額外抽取 1-3 張「建議牌」。
+[第四階段：深度解析與續抽判斷]
+解牌時結合校準背景。若客戶後續提問，自動評估是否需延續解析或「追加 1-3 張建議牌」並給予新的觀想引導。
 """
 
 # ==========================================
-# 3. 初始化 Session State (記憶體管理)
+# 3. 初始化 Session State
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    st.session_state.question_count = 0      # 提問計數
-    st.session_state.unlocked = False        # 是否已過密碼鎖
+    st.session_state.question_count = 0
+    st.session_state.unlocked = False
     st.session_state.current_model_id = "models/gemini-2.5-flash" 
     
-    # 建立初始對話
     st.session_state.chat = genai.GenerativeModel(
-        model_name=st.session_state.current_model_id, 
-        system_instruction=instruction
+        st.session_state.current_model_id, system_instruction=instruction
     ).start_chat(history=[])
     
     try:
@@ -99,12 +91,13 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # ==========================================
-# 5. 密碼攔截機制 (第三題門檻)
+# 5. 密碼攔截機制 (主動攔截流程優化)
 # ==========================================
-# 當問完校準(count=2)準備提問時，直接攔截，隱藏下方輸入框
+# 當使用者問完姓名(1)且送出校準牌(2)後，count 會變成 2。
+# 下一步應該要問正式問題，此時我們直接彈出密碼框，並停止渲染下方的對話框。
 if st.session_state.question_count == 2 and not st.session_state.unlocked:
     st.markdown("---")
-    st.warning("🔮 大師感應到深層能量需求，請輸入『通行密碼』以繼續深度諮詢：")
+    st.warning("🔮 **校準完成。為了進行深度占卜與牌陣建議，請先輸入通行密碼：**")
     
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -113,47 +106,43 @@ if st.session_state.question_count == 2 and not st.session_state.unlocked:
         if st.button("確認解鎖", use_container_width=True):
             if pwd_input == ACCESS_PASSWORD:
                 st.session_state.unlocked = True
-                st.success("解鎖成功！請發送您的占卜問題。")
-                st.rerun()
+                st.success("解鎖成功！")
+                st.rerun() # 密碼正確，重新刷頁面，對話框就會出現了
             else:
                 st.error("密碼錯誤")
+    
+    # 關鍵：這裡調用 stop()，確保下方的 st.chat_input 不會被顯示出來
     st.stop() 
 
 # ==========================================
-# 6. 使用者輸入邏輯 (動態切換大腦)
+# 6. 使用者輸入邏輯
 # ==========================================
-if prompt := st.chat_input("請輸入您的稱呼、牌名或疑問...", key="main_chat_v10"):
-    # 1. 顯示使用者訊息
+# 只有在 unlocked=True 或者 question_count != 2 時，使用者才會看到這個輸入框
+if prompt := st.chat_input("請輸入您的訊息...", key="main_chat_v11"):
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     
-    # 2. 增加提問計數
     st.session_state.question_count += 1
     
-    # 3. 判斷負載
+    # 動態判斷是否需要 Pro 大腦
     card_count = len(re.split(r'[,，\s\n]+', prompt.strip()))
-    is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "深度", "分析"])
+    is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "深度", "解析"])
     target_model = "models/gemini-2.5-pro" if is_complex else "models/gemini-2.5-flash"
 
-    # 4. 執行大師回應
     with st.chat_message("assistant"):
-        loading_msg = "大師感應中..."
-        with st.spinner(loading_msg):
+        with st.spinner("大師感應中..."):
             try:
-                # 熱切換大腦
                 if st.session_state.current_model_id != target_model:
                     history = st.session_state.chat.history
                     st.session_state.chat = genai.GenerativeModel(
-                        target_model, 
-                        system_instruction=instruction
+                        target_model, system_instruction=instruction
                     ).start_chat(history=history)
                     st.session_state.current_model_id = target_model 
 
                 response = st.session_state.chat.send_message(prompt)
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-                
             except Exception as e:
                 st.error(f"連線異常，請稍後再試。")
 
