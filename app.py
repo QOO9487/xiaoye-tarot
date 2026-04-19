@@ -23,7 +23,7 @@ else:
 genai.configure(api_key=API_KEY)
 
 # ==========================================
-# 側邊欄公告 (保留您要求的原始樣式)
+# 側邊欄公告 (保留原始樣式)
 # ==========================================
 with st.sidebar:
     st.header("🔮 關於小葉占卜師")
@@ -50,29 +50,27 @@ instruction = """
 對話啟動時，第一句話固定為：「您好！請問我該如何稱呼你？」
 
 [第二階段：能量校準]
-當對方提供三張牌時，僅判定：生理男/女、大概年齡區間（如：約30多歲）。
+當對方提供三張牌時，僅限判定：生理男/女、大概年齡區間（如：約30多歲）。
 禁忌：其餘內容皆不用說，保持極簡。
 校準完畢後，詢問客戶：「[稱呼]，校準完畢。請告訴我你今天想諮詢的問題是什麼？」
 
 [第三階段：診斷與抽牌建議]
 當客戶提出問題：
-1. 意念觀想引導：告知客戶抽牌時內心應想著什麼畫面（這對占卜結果至關重要）。
+1. 意念觀想引導：告知客戶抽牌時內心應想著什麼畫面。
 2. 建議牌陣：簡明扼要列出抽牌順序與每張牌代表的問題。每一張牌位意義僅限 10 字以內。
 
 [第四階段：深度解析與續抽判斷]
-解牌時結合校準背景。若客戶後續提問，自動評估：
-- 若涉及舊牌細節：延續解析。
-- 若涉及新決策/變數：告知需「額外抽取 1-3 張建議牌」並給予新的觀想引導。
+解牌時結合校準背景。若客戶後續提問，自動評估：是否需延續解析或「追加 1-3 張建議牌」。
 """
 
 # ==========================================
-# 3. 初始化 Session State (加入暫存區)
+# 3. 初始化 Session State
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
     st.session_state.question_count = 0
     st.session_state.unlocked = False
-    st.session_state.pending_prompt = None # 🔮 暫存區：存放解鎖前輸入的問題
+    st.session_state.pending_prompt = None  # 🔮 暫存區：解決「重複輸入」問題的關鍵
     st.session_state.current_model_id = "models/gemini-2.5-flash" 
     
     st.session_state.chat = genai.GenerativeModel(
@@ -93,29 +91,34 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # ==========================================
-# 5. 處理「暫存問題」的發送邏輯
+# 5. 使用者輸入捕獲 (關鍵修正：搬移到攔截邏輯之前)
 # ==========================================
-# 如果剛剛解鎖成功，且有暫存的問題，則在這裡自動觸發處理
-if st.session_state.unlocked and st.session_state.pending_prompt:
-    auto_prompt = st.session_state.pending_prompt
-    st.session_state.pending_prompt = None # 清空暫存
-    # 將暫存問題加入對話紀錄並執行 (邏輯同下方的 chat_input)
-    with st.chat_message("user"):
-        st.markdown(auto_prompt)
-    st.session_state.messages.append({"role": "user", "content": auto_prompt})
-    st.session_state.question_count += 1
-    
-    # 直接執行回應邏輯 (這裡簡化，下方的回應邏輯會處理它)
-    # 為了讓流程順暢，我們設定一個變數讓下方直接跑 response
-    st.session_state.force_response = auto_prompt
+# 無論是否解鎖，先提供輸入框
+prompt = st.chat_input("請輸入您的稱呼、牌名或疑問...", key="main_chat_v13")
+
+# 如果使用者輸入了內容
+if prompt:
+    # 情況 A：這不是第三題，或是已經解鎖，直接處理
+    if st.session_state.question_count != 2 or st.session_state.unlocked:
+        # 直接進入處理流程
+        pass 
+    # 情況 B：這是第三題且未解鎖，將內容存入「暫存區」並重新整理來觸發鎖頭
+    else:
+        st.session_state.pending_prompt = prompt
+        st.rerun()
 
 # ==========================================
-# 6. 密碼攔截機制 (優化：偵測輸入並暫存)
+# 6. 密碼攔截機制 (優化：如果暫存區有東西，自動銜接)
 # ==========================================
 if st.session_state.question_count == 2 and not st.session_state.unlocked:
-    st.markdown("---")
-    st.warning("🔮 **校準完成。為了進行深度占卜與牌陣建議，請輸入通行密碼以繼續：**")
-    
+    # 如果暫存區已經有剛才輸入的問題，顯示出來讓使用者安心
+    if st.session_state.pending_prompt:
+        with st.chat_message("user"):
+            st.markdown(st.session_state.pending_prompt)
+        st.warning("🔮 **問題已接收。請輸入通行密碼解鎖，大師將立即為您解析：**")
+    else:
+        st.warning("🔮 **校準完成。請在此輸入通行密碼以開啟深度諮詢：**")
+
     col1, col2 = st.columns([3, 1])
     with col1:
         pwd_input = st.text_input("輸入密碼", type="password", label_visibility="collapsed", key="lock_pwd")
@@ -123,37 +126,32 @@ if st.session_state.question_count == 2 and not st.session_state.unlocked:
         if st.button("確認解鎖", use_container_width=True):
             if pwd_input == ACCESS_PASSWORD:
                 st.session_state.unlocked = True
-                st.success("解鎖成功！正在為您導向大師解析...")
-                st.rerun()
+                # 🔮 核心自動化：解鎖成功後，如果有暫存問題，直接存入對話紀錄
+                if st.session_state.pending_prompt:
+                    prompt = st.session_state.pending_prompt
+                    st.session_state.pending_prompt = None # 清空暫存
+                    # 這裡不 rerun，直接讓下方的解析邏輯跑完
+                else:
+                    st.success("解鎖成功！請開始提問。")
+                    st.rerun()
             else:
                 st.error("密碼錯誤")
     
-    # 🔮 核心優化：如果使用者在這個狀態下「硬要」輸入問題 (透過某些方式) 
-    # 或者我們想在使用者看到鎖之前就存下內容
-    if prompt_check := st.chat_input("請輸入您的問題 (輸入後請解鎖)..."):
-        st.session_state.pending_prompt = prompt_check
-        st.info("💡 問題已記錄，請輸入密碼解鎖後大師將立即回答。")
-        st.rerun()
-
-    st.stop() 
+    # 如果還沒解鎖，且目前也沒有要自動處理的問題，就停止
+    if not st.session_state.unlocked:
+        st.stop()
 
 # ==========================================
 # 7. 使用者提問與大師回應邏輯
 # ==========================================
-# 判斷是來自輸入框，還是來自剛剛解鎖後的「暫存發送」
-prompt = st.chat_input("請輸入您的訊息...")
-if "force_response" in st.session_state:
-    prompt = st.session_state.pop("force_response")
-
 if prompt:
-    # 如果還沒被加入紀錄 (chat_input 進來的需要加入，暫存進來的上面已經加過)
-    if not any(m["content"] == prompt for m in st.session_state.messages[-1:]):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        st.session_state.question_count += 1
+    # 將問題加入對話紀錄
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.question_count += 1
     
-    # 判斷模型
+    # 判斷模型等級
     card_count = len(re.split(r'[,，\s\n]+', prompt.strip()))
     is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "深度", "分析"])
     target_model = "models/gemini-2.5-pro" if is_complex else "models/gemini-2.5-flash"
@@ -161,6 +159,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("大師感應中..."):
             try:
+                # 記憶遷移與模型切換
                 if st.session_state.current_model_id != target_model:
                     history = st.session_state.chat.history
                     st.session_state.chat = genai.GenerativeModel(
@@ -172,7 +171,7 @@ if prompt:
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                st.error(f"大師暫時斷開連結，請稍後。")
+                st.error(f"連線異常，請稍後重試。")
 
 st.divider()
 st.caption("© 2026 小葉設計")
