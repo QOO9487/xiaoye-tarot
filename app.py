@@ -21,6 +21,23 @@ else:
 genai.configure(api_key=API_KEY)
 
 # ==========================================
+# 側邊欄公告 (說明付費與密碼機制)
+# ==========================================
+with st.sidebar:
+    st.header("🔮 關於小葉占卜師")
+    st.info("""
+    本平台由 **小葉** 研發設計，旨在提供深度、專業的塔羅諮詢體驗。
+    
+    ### 💡 使用說明
+    * **初步體驗**：開放前兩次提問免費體驗，讓您感受大師的能量。
+    * **深度諮詢**：由於高階 AI 模型運算需支付雲端費用，**從第三個問題起**，系統將要求輸入「通行密碼」。
+    
+    ### 🔑 如何獲取密碼？
+    如欲繼續進行深度占卜，請私訊 **小葉** 索取專屬密碼，即可解鎖後續無限次諮詢。
+    """)
+    st.caption("技術支援：Gemini 3.1 Pro & Flash")
+
+# ==========================================
 # 2. 占卜大師靈魂設定 (System Instruction)
 # ==========================================
 instruction = """
@@ -69,8 +86,8 @@ for msg in st.session_state.messages:
 # ==========================================
 # 5. 密碼攔截機制 (第三題門檻)
 # ==========================================
-# 邏輯：當使用者已經問過 3 個問題，且還沒解鎖時，攔截後續動作
-if st.session_state.question_count == 3 and not st.session_state.unlocked:
+# 當使用者已經問過 2 個問題 (count=2)，且還沒解鎖時，攔截第 3 個問題
+if st.session_state.question_count == 2 and not st.session_state.unlocked:
     st.markdown("---")
     st.warning("🔮 大師感應到深層能量，請輸入『通行密碼』以繼續深度諮詢：")
     
@@ -85,7 +102,7 @@ if st.session_state.question_count == 3 and not st.session_state.unlocked:
                 st.rerun()
             else:
                 st.error("密碼錯誤")
-    st.stop() # 密碼未通過前，停止渲染後續輸入介面
+    st.stop() 
 
 # ==========================================
 # 6. 使用者輸入邏輯 (動態切換大腦)
@@ -109,14 +126,14 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
         loading_msg = "大師啟動高階邏輯感應中..." if is_complex else "大師感應中..."
         with st.spinner(loading_msg):
             try:
-                # 記憶遷移邏輯：如果目前模型不符目標，則熱切換大腦
+                # 記憶遷移邏輯：熱切換大腦
                 if st.session_state.current_model_id != target_model:
                     history = st.session_state.chat.history
                     st.session_state.chat = genai.GenerativeModel(
                         target_model, 
                         system_instruction=instruction
                     ).start_chat(history=history)
-                    st.session_state.current_model_id = target_model # 更新標記
+                    st.session_state.current_model_id = target_model 
 
                 # 發送訊息
                 response = st.session_state.chat.send_message(prompt)
@@ -124,7 +141,6 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
                 
             except Exception as e:
-                # 異常處理與額度提示
                 if "429" in str(e):
                     st.warning("大師目前感應過於頻繁，請稍候再試。")
                 elif "404" in str(e):
@@ -135,4 +151,5 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
 # ==========================================
 # 7. 頁尾資訊
 # ==========================================
-st.caption("Powered by Gemini 3.1 & 小葉設計 | 費用將由月預算 NT$50 控制。")
+st.divider()
+st.caption("© 2026 小葉占卜師 ")
