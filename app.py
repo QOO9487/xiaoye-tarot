@@ -76,29 +76,30 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
 import google.generativeai as genai
 import streamlit as st
 
-# 讀取你的 API Key
+# 1. 配置 API Key
 if "GOOGLE_API_KEY" in st.secrets:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
-
-    print("--- 正在獲取可用模型清單 ---")
     
-    # 這裡會列出所有你有權限調用的模型
-    available_models = []
-    for m in genai.list_models():
-        # 我們只看具備 'generateContent' (生成內容) 功能的模型
-        if 'generateContent' in m.supported_actions:
-            available_models.append({
-                "名稱": m.name,
-                "顯示名稱": m.display_name,
-                "說明": m.description
+    st.write("### --- 您的 API 可用模型清單 ---")
+    
+    try:
+        # 獲取原始模型列表
+        models = genai.list_models()
+        
+        # 建立一個簡單的清單來顯示，避免讀取不存在的屬性
+        model_list = []
+        for m in models:
+            # 只要印出名稱就好，這絕對不會報錯
+            model_list.append({
+                "模型 ID": m.name,
+                "模型標題": m.display_name
             })
-    
-    # 在終端機印出
-    for idx, model in enumerate(available_models):
-        print(f"{idx+1}. {model['顯示名稱']} ({model['名稱']})")
-    
-    # 如果你想直接顯示在 Streamlit 畫面上，可以用下面這行
-    # st.write(available_models)
+            
+        # 直接把結果顯示在 Streamlit 畫面上，表格化最清楚
+        st.table(model_list)
+        
+    except Exception as e:
+        st.error(f"獲取清單時發生預期外錯誤：{e}")
 else:
-    print("找不到 API Key，請檢查 Secrets 設定。")
+    st.error("請確認 Streamlit Secrets 中已設定 GOOGLE_API_KEY")
