@@ -5,18 +5,15 @@ import re
 # ==========================================
 # 1. 核心參數與安全性設定
 # ==========================================
-# 強制從平台 Secrets 讀取通行密碼
 if "ACCESS_PASSWORD" in st.secrets:
     ACCESS_PASSWORD = st.secrets["ACCESS_PASSWORD"]
 else:
-    st.error("請在 Streamlit Secrets 中設定 ACCESS_PASSWORD (通行密碼)")
+    st.error("請在 Streamlit Secrets 中設定 ACCESS_PASSWORD")
     st.stop()
 
-# 網頁基礎配置
 st.set_page_config(page_title="小葉占卜師", page_icon="🔮", layout="centered")
 st.title("🔮 小葉占卜師：AI 塔羅諮詢")
 
-# API Key 安全讀取
 if "GOOGLE_API_KEY" in st.secrets:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
 else:
@@ -26,76 +23,71 @@ else:
 genai.configure(api_key=API_KEY)
 
 # ==========================================
-# 側邊欄公告 (說明付費與密碼機制)
-# ==========================================
-with st.sidebar:
-    st.header("🔮 關於小葉占卜師")
-    st.info("""
-    本平台由 **小葉** 研發設計，旨在提供深度、專業的塔羅諮詢體驗。
-    
-    ### 💡 使用說明
-    * **初步體驗**：開放前兩次提問免費體驗，讓您感受大師的能量。
-    * **深度諮詢**：由於高階 AI 模型運算需支付雲端費用，**從第三個問題起**，系統將要求輸入「通行密碼」。
-    
-    ### 🔑 如何獲取密碼？
-    如欲繼續進行深度占卜，請私訊 **小葉** 索取專屬密碼，即可解鎖後續無限次諮詢。
-    """)
-    st.caption("技術支援：Gemini 2.5 Pro & Flash")
-
-# ==========================================
-# 2. 占卜大師靈魂設定 (System Instruction)
+# 2. 占卜大師「高階邏輯」提示詞
 # ==========================================
 instruction = """
 [核心人格]
-你是一位具備資深背景與極高洞察力的塔羅占卜大師。語氣沉穩、睿智且專業。
+你是一位資深、沉穩且具備極高洞察力的塔羅大師。說話簡練，重視意念與能量的對位。
+
 [第一階段：確認身分]
-對話啟動時，第一句話必須且只能是：您好！請問我該如何稱呼你？
-[第二階段：能量校準]
-得到稱呼後，要求對方提供三張牌進行能量校準。解析時必須明確斷言對方的生理性別。
-[第三階段：專業解析]
-根據牌陣進行深度解讀。若牌數較多（如九宮格），請務必分析牌與牌之間的關聯性、對角線與因果連結。
-[語氣規範]
-請使用台灣慣用的口吻（例如：機率、連結、對位）。描述年齡時，直接說「約30多歲」，嚴禁使用「20代」等非本土說法。
+第一句話固定為：「您好！請問我該如何稱呼你？」
+
+[第二階段：能量校準 (絕對簡潔)]
+當對方提供三張校準牌時：
+1. 僅限判定：生理男/女、大概年齡區間（如：約30多歲）。
+2. 嚴禁：嚴禁提及現狀描述、壓力分析或任何額外預測。
+3. 結語：直接詢問：「[稱呼]，校準完畢。請告訴我你今天想諮詢的問題是什麼？」
+
+[第三階段：診斷與抽牌引導]
+當客戶提出問題，你必須評估牌陣。
+1. 視覺觀想引導：必須告知客戶抽牌時內心應想著什麼畫面（例如：想像你們最後一次見面的情景）。
+2. 建議牌陣：
+   - 聖三角（3張）：過去、現在、未來。
+   - 二選一（5張）：路徑A、路徑B、兩者對比。
+   - 六芒星（6張）：關係現狀、阻礙、潛意識。
+   - 九宮格（9張）：全方位運勢掃描。
+3. 排版規範：簡明扼要，每一張牌位僅用 5-10 個字描述意義，嚴禁長篇大論。
+
+[第四階段：深度解析與延伸判斷]
+當客戶對解析提出疑問或後續想法時，你必須自動執行「決策邏輯」：
+- 情況 A (深層挖掘)：若問題涉及原本牌陣的細節，請直接從舊牌中尋找更深層訊息，無需抽牌。
+- 情況 B (行動導航)：若問題涉及新的決策、未知的變數或需要具體建議，請告知：「針對這部分，我們需要額外抽取 1-3 張『建議牌』。」並重複抽牌引導流程。
 """
 
 # ==========================================
-# 3. 初始化 Session State (記憶體管理)
+# 3. 初始化 Session State (記憶體與模型切換)
 # ==========================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    st.session_state.question_count = 0      # 提問計數
-    st.session_state.unlocked = False        # 是否已過密碼鎖
-    # 使用 2.5 穩定版路徑
+    st.session_state.question_count = 0
+    st.session_state.unlocked = False
     st.session_state.current_model_id = "models/gemini-2.5-flash" 
     
-    # 建立初始 Flash 大腦
-    initial_model = genai.GenerativeModel(
-        model_name=st.session_state.current_model_id, 
-        system_instruction=instruction
-    )
-    st.session_state.chat = initial_model.start_chat(history=[])
+    # 初始對話
+    st.session_state.chat = genai.GenerativeModel(
+        st.session_state.current_model_id, system_instruction=instruction
+    ).start_chat(history=[])
     
-    # 自動發起大師問候
     try:
         response = st.session_state.chat.send_message("請依照指令，發起問候。")
         st.session_state.messages.append({"role": "assistant", "content": response.text})
     except Exception:
         st.session_state.messages.append({"role": "assistant", "content": "您好！請問我該如何稱呼你？"})
 
-# ==========================================
+with st.sidebar:
+    st.header("🔮 占卜導航")
+    st.info("校準 > 建議牌陣與觀想 > 深度解析 > (選填) 抽取建議牌。")
+    st.caption("小葉設計 | 機械邏輯輔助神祕學")
+
 # 4. 渲染聊天視窗
-# ==========================================
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ==========================================
-# 5. 密碼攔截機制 (第三題門檻)
-# ==========================================
+# 5. 密碼攔截 (第三題)
 if st.session_state.question_count == 2 and not st.session_state.unlocked:
     st.markdown("---")
     st.warning("🔮 大師感應到深層能量，請輸入『通行密碼』以繼續深度諮詢：")
-    
     col1, col2 = st.columns([3, 1])
     with col1:
         pwd_input = st.text_input("輸入密碼", type="password", label_visibility="collapsed", key="lock_pwd")
@@ -109,53 +101,36 @@ if st.session_state.question_count == 2 and not st.session_state.unlocked:
                 st.error("密碼錯誤")
     st.stop() 
 
-# ==========================================
-# 6. 使用者輸入邏輯 (動態切換大腦)
-# ==========================================
-if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_chat_v6"):
-    # 1. 顯示使用者訊息
+# 6. 使用者輸入
+if prompt := st.chat_input("請輸入您的稱呼、牌名或疑問...", key="main_chat_v8"):
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    # 2. 增加提問計數
     st.session_state.question_count += 1
     
-    # 3. 判斷負載：偵測牌數與關鍵字
+    # 判斷是否啟動 Pro 大腦 (針對九宮格或長文解析)
     card_count = len(re.split(r'[,，\s\n]+', prompt.strip()))
-    is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "二選一", "深度"])
-    # 修正模型路徑為 2.5 正式版
+    is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "深度", "分析"])
     target_model = "models/gemini-2.5-pro" if is_complex else "models/gemini-2.5-flash"
 
-    # 4. 執行大師回應
     with st.chat_message("assistant"):
-        loading_msg = "大師啟動深度感應中..." if is_complex else "大師感應中..."
+        loading_msg = "大師解析中..." if is_complex else "大師感應中..."
         with st.spinner(loading_msg):
             try:
-                # 記憶遷移邏輯：切換大腦
+                # 記憶遷移邏輯
                 if st.session_state.current_model_id != target_model:
                     history = st.session_state.chat.history
                     st.session_state.chat = genai.GenerativeModel(
-                        target_model, 
-                        system_instruction=instruction
+                        target_model, system_instruction=instruction
                     ).start_chat(history=history)
                     st.session_state.current_model_id = target_model 
 
-                # 發送訊息
                 response = st.session_state.chat.send_message(prompt)
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
                 
             except Exception as e:
-                if "429" in str(e):
-                    st.warning("大師目前感應次數已達上限，請稍候再試。")
-                elif "404" in str(e):
-                    st.error("系統模型路徑異常，請嘗試重新整理頁面。")
-                else:
-                    st.error(f"連線異常：{e}")
+                st.error(f"連線異常，請稍後重試。")
 
-# ==========================================
-# 7. 頁尾資訊
-# ==========================================
 st.divider()
-st.caption("© 2026 小葉設計 | 技術支援由 Gemini 2.5 系列提供")
+st.caption("© 2026 小葉設計")
