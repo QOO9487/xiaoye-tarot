@@ -5,7 +5,7 @@ import re
 # ==========================================
 # 1. 核心參數與安全性設定
 # ==========================================
-# 移除備用密碼，強制從平台 Secrets 讀取
+# 強制從平台 Secrets 讀取通行密碼
 if "ACCESS_PASSWORD" in st.secrets:
     ACCESS_PASSWORD = st.secrets["ACCESS_PASSWORD"]
 else:
@@ -40,7 +40,7 @@ with st.sidebar:
     ### 🔑 如何獲取密碼？
     如欲繼續進行深度占卜，請私訊 **小葉** 索取專屬密碼，即可解鎖後續無限次諮詢。
     """)
-    st.caption("技術支援：Gemini 3.1 Pro & Flash")
+    st.caption("技術支援：Gemini 2.5 Pro & Flash")
 
 # ==========================================
 # 2. 占卜大師靈魂設定 (System Instruction)
@@ -65,7 +65,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
     st.session_state.question_count = 0      # 提問計數
     st.session_state.unlocked = False        # 是否已過密碼鎖
-    st.session_state.current_model_id = "models/gemini-3.1-flash-preview" # 初始預設模型
+    # 使用 2.5 穩定版路徑
+    st.session_state.current_model_id = "models/gemini-2.5-flash" 
     
     # 建立初始 Flash 大腦
     initial_model = genai.GenerativeModel(
@@ -74,7 +75,7 @@ if "messages" not in st.session_state:
     )
     st.session_state.chat = initial_model.start_chat(history=[])
     
-    # 自動發起大師問候 (不顯示指令)
+    # 自動發起大師問候
     try:
         response = st.session_state.chat.send_message("請依照指令，發起問候。")
         st.session_state.messages.append({"role": "assistant", "content": response.text})
@@ -91,7 +92,6 @@ for msg in st.session_state.messages:
 # ==========================================
 # 5. 密碼攔截機制 (第三題門檻)
 # ==========================================
-# 當使用者已經問過 2 個問題 (count=2)，且還沒解鎖時，攔截第 3 個問題
 if st.session_state.question_count == 2 and not st.session_state.unlocked:
     st.markdown("---")
     st.warning("🔮 大師感應到深層能量，請輸入『通行密碼』以繼續深度諮詢：")
@@ -103,7 +103,7 @@ if st.session_state.question_count == 2 and not st.session_state.unlocked:
         if st.button("確認解鎖", use_container_width=True):
             if pwd_input == ACCESS_PASSWORD:
                 st.session_state.unlocked = True
-                st.success("解鎖成功！請重新發送您的問題。")
+                st.success("解鎖成功！")
                 st.rerun()
             else:
                 st.error("密碼錯誤")
@@ -124,14 +124,15 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
     # 3. 判斷負載：偵測牌數與關鍵字
     card_count = len(re.split(r'[,，\s\n]+', prompt.strip()))
     is_complex = card_count >= 6 or any(kw in prompt for kw in ["九宮格", "六芒星", "二選一", "深度"])
-    target_model = "models/gemini-3.1-pro-preview" if is_complex else "models/gemini-3.1-flash-preview"
+    # 修正模型路徑為 2.5 正式版
+    target_model = "models/gemini-2.5-pro" if is_complex else "models/gemini-2.5-flash"
 
     # 4. 執行大師回應
     with st.chat_message("assistant"):
-        loading_msg = "大師啟動高階邏輯感應中..." if is_complex else "大師感應中..."
+        loading_msg = "大師啟動深度感應中..." if is_complex else "大師感應中..."
         with st.spinner(loading_msg):
             try:
-                # 記憶遷移邏輯：熱切換大腦
+                # 記憶遷移邏輯：切換大腦
                 if st.session_state.current_model_id != target_model:
                     history = st.session_state.chat.history
                     st.session_state.chat = genai.GenerativeModel(
@@ -146,11 +147,10 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
                 
             except Exception as e:
-                # 異常處理
                 if "429" in str(e):
-                    st.warning("大師目前感應過於頻繁，請稍候再試。")
+                    st.warning("大師目前感應次數已達上限，請稍候再試。")
                 elif "404" in str(e):
-                    st.error("系統路徑異常，請檢查模型名稱是否正確。")
+                    st.error("系統模型路徑異常，請嘗試重新整理頁面。")
                 else:
                     st.error(f"連線異常：{e}")
 
@@ -158,4 +158,4 @@ if prompt := st.chat_input("請輸入您的稱呼或占卜訊息...", key="main_
 # 7. 頁尾資訊
 # ==========================================
 st.divider()
-st.caption("© 2026 小葉設計")
+st.caption("© 2026 小葉設計 | 技術支援由 Gemini 2.5 系列提供")
